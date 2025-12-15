@@ -76,6 +76,26 @@
             font-size: 1.1rem;
         }
 
+        .user-info {
+            background: #eef2ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .user-info p:first-child {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+
+        .user-info p:last-child {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -118,18 +138,13 @@
             gap: 10px;
         }
 
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
         .btn-primary {
             background: #667eea;
             color: white;
             margin-bottom: 15px;
         }
 
-        .btn-primary:hover:not(:disabled) {
+        .btn-primary:hover {
             background: #5568d3;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
@@ -171,38 +186,6 @@
 
         .hidden {
             display: none !important;
-        }
-
-        .error-message {
-            background: #fed7d7;
-            color: #c53030;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
-
-        .success-message {
-            background: #c6f6d5;
-            color: #22543d;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
         }
 
         /* Dashboard Styles */
@@ -329,6 +312,11 @@
 
         .employee-name:hover {
             color: #667eea;
+        }
+
+        .employee-username {
+            font-size: 0.85rem;
+            color: #718096;
         }
 
         .status-badge {
@@ -534,9 +522,6 @@
                 <p class="subtitle">Clock in or clock out</p>
             </div>
 
-            <div id="loginError" class="error-message hidden"></div>
-            <div id="loginSuccess" class="success-message hidden"></div>
-
             <form onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label for="loginUsername">Username</label>
@@ -548,10 +533,7 @@
                     <input type="password" id="loginPassword" placeholder="Enter your password" required>
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="loginBtn">
-                    <span id="loginBtnText">Log In</span>
-                    <span id="loginBtnLoader" class="loading hidden"></span>
-                </button>
+                <button type="submit" class="btn btn-primary">Log In</button>
                 <button type="button" class="btn btn-back" onclick="showPage('welcome')">Back</button>
             </form>
         </div>
@@ -572,9 +554,6 @@
                 <h2>Sign Up</h2>
                 <p class="subtitle">Create your account</p>
             </div>
-
-            <div id="signupError" class="error-message hidden"></div>
-            <div id="signupSuccess" class="success-message hidden"></div>
 
             <form onsubmit="handleSignup(event)">
                 <div class="form-group">
@@ -607,10 +586,7 @@
                     <input type="password" id="signupConfirmPassword" placeholder="Confirm your password" required>
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="signupBtn">
-                    <span id="signupBtnText">Create Account</span>
-                    <span id="signupBtnLoader" class="loading hidden"></span>
-                </button>
+                <button type="submit" class="btn btn-primary">Create Account</button>
                 <button type="button" class="btn btn-back" onclick="showPage('welcome')">Back</button>
             </form>
         </div>
@@ -629,8 +605,8 @@
                     </div>
                     <h1 style="margin-bottom: 0;">Dashboard</h1>
                 </div>
-                <button class="btn btn-back" style="width: auto; padding: 12px 30px;" onclick="logout()">
-                    Logout
+                <button class="btn btn-back" style="width: auto; padding: 12px 30px;" onclick="showPage('welcome')">
+                    Back to Home
                 </button>
             </div>
 
@@ -697,7 +673,7 @@
                     <tbody id="timeRecordsTable">
                         <tr>
                             <td colspan="6" class="empty-state">
-                                Loading time entries...
+                                No time entries yet. Log in to create records.
                             </td>
                         </tr>
                     </tbody>
@@ -769,33 +745,13 @@
     </div>
 
     <script>
-        // API Configuration
-        const API_URL = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000/api' 
-            : '/api';
-
-        // State
+        // Initialize data
+        let users = [
+            { username: 'Rizal', password: 'admin1861', firstName: 'Jose', lastName: 'Rizal', email: 'admin@timetrack.com', isAdmin: true }
+        ];
+        let timeEntries = [];
         let currentUser = null;
-        let authToken = null;
-        let allEntries = [];
-        let allUsers = [];
         let selectedEmployeeUsername = null;
-
-        // Check for saved session
-        window.addEventListener('load', () => {
-            const savedToken = localStorage.getItem('authToken');
-            const savedUser = localStorage.getItem('currentUser');
-            
-            if (savedToken && savedUser) {
-                authToken = savedToken;
-                currentUser = JSON.parse(savedUser);
-                
-                if (currentUser.isAdmin) {
-                    showPage('dashboard');
-                    loadDashboard();
-                }
-            }
-        });
 
         // Show page function
         function showPage(pageName) {
@@ -805,6 +761,10 @@
             document.getElementById('dashboardPage').classList.add('hidden');
 
             document.getElementById(pageName + 'Page').classList.remove('hidden');
+
+            if (pageName === 'dashboard') {
+                updateDashboard();
+            }
         }
 
         // Format time
@@ -826,98 +786,72 @@
             });
         }
 
-        // Show error message
-        function showError(elementId, message) {
-            const errorEl = document.getElementById(elementId);
-            errorEl.textContent = message;
-            errorEl.classList.remove('hidden');
-            setTimeout(() => errorEl.classList.add('hidden'), 5000);
-        }
-
-        // Show success message
-        function showSuccess(elementId, message) {
-            const successEl = document.getElementById(elementId);
-            successEl.textContent = message;
-            successEl.classList.remove('hidden');
-            setTimeout(() => successEl.classList.add('hidden'), 5000);
-        }
-
         // Handle login
-        async function handleLogin(event) {
+        function handleLogin(event) {
             event.preventDefault();
             
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
-            const btn = document.getElementById('loginBtn');
-            const btnText = document.getElementById('loginBtnText');
-            const btnLoader = document.getElementById('loginBtnLoader');
 
-            // Show loading
-            btn.disabled = true;
-            btnText.classList.add('hidden');
-            btnLoader.classList.remove('hidden');
+            const user = users.find(u => u.username === username && u.password === password);
 
-            try {
-                // Login request
-                const response = await fetch(`${API_URL}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Login failed');
-                }
-
-                // Save auth data
-                authToken = data.token;
-                currentUser = data.user;
-                localStorage.setItem('authToken', authToken);
-                localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-                // If admin, go to dashboard
-                if (currentUser.isAdmin) {
-                    showPage('dashboard');
-                    loadDashboard();
-                } else {
-                    // For employees, clock in/out
-                    const clockResponse = await fetch(`${API_URL}/clock`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken}`
-                        }
-                    });
-
-                    const clockData = await clockResponse.json();
-                    
-                    if (clockResponse.ok) {
-                        alert(clockData.message + '\n' + formatTime(new Date()));
-                        
-                        // Clear form and return to welcome
-                        document.getElementById('loginUsername').value = '';
-                        document.getElementById('loginPassword').value = '';
-                        currentUser = null;
-                        authToken = null;
-                        localStorage.removeItem('authToken');
-                        localStorage.removeItem('currentUser');
-                        showPage('welcome');
-                    }
-                }
-            } catch (error) {
-                showError('loginError', error.message);
-            } finally {
-                // Hide loading
-                btn.disabled = false;
-                btnText.classList.remove('hidden');
-                btnLoader.classList.add('hidden');
+            if (!user) {
+                alert('Invalid username or password');
+                return;
             }
+
+            // Clear form
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+
+            // If admin, just go to dashboard without recording
+            if (user.isAdmin) {
+                currentUser = user;
+                showPage('dashboard');
+                return;
+            }
+
+            // For regular employees, record clock in/out
+            const activeEntry = timeEntries.find(
+                entry => entry.username === username && entry.status === 'Clocked In'
+            );
+
+            const now = new Date();
+
+            if (activeEntry) {
+                // Clock out
+                const index = timeEntries.findIndex(e => e.id === activeEntry.id);
+                const duration = (now - new Date(activeEntry.clockIn)) / (1000 * 60 * 60);
+                timeEntries[index].clockOut = now.toISOString();
+                timeEntries[index].status = 'Clocked Out';
+                timeEntries[index].hoursWorked = duration.toFixed(2);
+
+                alert(`Clocked Out Successfully!\n${user.firstName} ${user.lastName}\n${formatTime(now)}`);
+            } else {
+                // Clock in
+                const newEntry = {
+                    id: Date.now(),
+                    username: username,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    clockIn: now.toISOString(),
+                    clockOut: null,
+                    date: formatDate(now),
+                    status: 'Clocked In',
+                    hoursWorked: null
+                };
+                timeEntries.unshift(newEntry);
+
+                alert(`Clocked In Successfully!\n${user.firstName} ${user.lastName}\n${formatTime(now)}`);
+            }
+
+            // Return to welcome page
+            currentUser = null;
+            showPage('welcome');
         }
 
         // Handle signup
-        async function handleSignup(event) {
+        function handleSignup(event) {
             event.preventDefault();
 
             const lastName = document.getElementById('signupLastName').value;
@@ -928,110 +862,77 @@
             const confirmPassword = document.getElementById('signupConfirmPassword').value;
 
             if (password !== confirmPassword) {
-                showError('signupError', 'Passwords do not match');
+                alert('Passwords do not match');
+                return;
+            }
+
+            if (users.find(u => u.username === username)) {
+                alert('Username already exists');
+                return;
+            }
+
+            if (users.find(u => u.email === email)) {
+                alert('Email already exists');
                 return;
             }
 
             if (password.length < 6) {
-                showError('signupError', 'Password must be at least 6 characters');
+                alert('Password must be at least 6 characters');
                 return;
             }
 
-            const btn = document.getElementById('signupBtn');
-            const btnText = document.getElementById('signupBtnText');
-            const btnLoader = document.getElementById('signupBtnLoader');
+            users.push({
+                username,
+                password,
+                firstName,
+                lastName,
+                email,
+                isAdmin: false
+            });
 
-            // Show loading
-            btn.disabled = true;
-            btnText.classList.add('hidden');
-            btnLoader.classList.remove('hidden');
+            alert('Account created successfully! Please log in.');
 
-            try {
-                const response = await fetch(`${API_URL}/signup`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        firstName,
-                        lastName,
-                        email,
-                        username,
-                        password
-                    })
-                });
+            // Clear form
+            document.getElementById('signupLastName').value = '';
+            document.getElementById('signupFirstName').value = '';
+            document.getElementById('signupEmail').value = '';
+            document.getElementById('signupUsername').value = '';
+            document.getElementById('signupPassword').value = '';
+            document.getElementById('signupConfirmPassword').value = '';
 
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Signup failed');
-                }
-
-                showSuccess('signupSuccess', 'Account created successfully! Please log in.');
-                
-                // Clear form
-                document.getElementById('signupLastName').value = '';
-                document.getElementById('signupFirstName').value = '';
-                document.getElementById('signupEmail').value = '';
-                document.getElementById('signupUsername').value = '';
-                document.getElementById('signupPassword').value = '';
-                document.getElementById('signupConfirmPassword').value = '';
-
-                // Redirect to login after 2 seconds
-                setTimeout(() => showPage('login'), 2000);
-            } catch (error) {
-                showError('signupError', error.message);
-            } finally {
-                // Hide loading
-                btn.disabled = false;
-                btnText.classList.remove('hidden');
-                btnLoader.classList.add('hidden');
-            }
+            showPage('login');
         }
 
-        // Load dashboard
-        async function loadDashboard() {
-            try {
-                // Load stats
-                const statsResponse = await fetch(`${API_URL}/stats`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                const stats = await statsResponse.json();
-                
-                document.getElementById('totalUsers').textContent = stats.totalUsers;
-                document.getElementById('currentlyClockedIn').textContent = stats.currentlyClockedIn;
-                document.getElementById('totalRecords').textContent = stats.totalRecords;
-
-                // Load entries
-                const entriesResponse = await fetch(`${API_URL}/entries`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                allEntries = await entriesResponse.json();
-
-                // Load users
-                const usersResponse = await fetch(`${API_URL}/users`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                allUsers = await usersResponse.json();
-
-                updateDashboardTable();
-            } catch (error) {
-                console.error('Error loading dashboard:', error);
-            }
+        // Update welcome page
+        function updateWelcomePage() {
+            // Welcome page always shows the same - no user info displayed
         }
 
-        // Update dashboard table
-        function updateDashboardTable() {
+        // Logout
+        function logout() {
+            currentUser = null;
+            showPage('welcome');
+        }
+
+        // Update dashboard
+        function updateDashboard() {
+            document.getElementById('totalUsers').textContent = users.length;
+            document.getElementById('currentlyClockedIn').textContent = 
+                timeEntries.filter(e => e.status === 'Clocked In').length;
+            document.getElementById('totalRecords').textContent = timeEntries.length;
+
             const tableBody = document.getElementById('timeRecordsTable');
             
-            if (allEntries.length === 0) {
+            if (timeEntries.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="6" class="empty-state">
-                            No time entries yet. Employees should log in to create records.
+                            No time entries yet. Log in to create records.
                         </td>
                     </tr>
                 `;
             } else {
-                tableBody.innerHTML = allEntries.map(entry => `
+                tableBody.innerHTML = timeEntries.map(entry => `
                     <tr>
                         <td>
                             <div class="employee-name" onclick="showEmployeeDetail('${entry.username}')">${entry.firstName} ${entry.lastName}</div>
@@ -1051,9 +952,9 @@
         }
 
         // Show employee detail modal
-        async function showEmployeeDetail(username) {
+        function showEmployeeDetail(username) {
             selectedEmployeeUsername = username;
-            const employee = allUsers.find(u => u.username === username);
+            const employee = users.find(u => u.username === username);
             
             if (!employee) return;
 
@@ -1062,20 +963,8 @@
             document.getElementById('modalEmail').textContent = employee.email;
             document.getElementById('timeFilter').value = 'all';
 
-            try {
-                const response = await fetch(`${API_URL}/entries/${username}`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                const entries = await response.json();
-                
-                // Store entries for filtering
-                window.employeeEntries = entries;
-                
-                updateEmployeeModal();
-                document.getElementById('employeeModal').classList.remove('hidden');
-            } catch (error) {
-                console.error('Error loading employee details:', error);
-            }
+            updateEmployeeModal();
+            document.getElementById('employeeModal').classList.remove('hidden');
         }
 
         // Filter time entries based on selected period
@@ -1119,10 +1008,11 @@
 
         // Update employee modal with filtered data
         function updateEmployeeModal() {
-            if (!window.employeeEntries) return;
+            if (!selectedEmployeeUsername) return;
 
             const period = document.getElementById('timeFilter').value;
-            const filteredEntries = filterEntriesByPeriod(window.employeeEntries, period);
+            const allEntries = timeEntries.filter(e => e.username === selectedEmployeeUsername);
+            const filteredEntries = filterEntriesByPeriod(allEntries, period);
 
             // Calculate total hours
             const totalHours = filteredEntries
@@ -1164,7 +1054,6 @@
         function closeEmployeeModal() {
             document.getElementById('employeeModal').classList.add('hidden');
             selectedEmployeeUsername = null;
-            window.employeeEntries = null;
         }
 
         // Close modal when clicking outside
@@ -1174,14 +1063,8 @@
             }
         }
 
-        // Logout
-        function logout() {
-            currentUser = null;
-            authToken = null;
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('currentUser');
-            showPage('welcome');
-        }
+        // Initialize
+        // No need to update welcome page on init
     </script>
 </body>
 </html>
