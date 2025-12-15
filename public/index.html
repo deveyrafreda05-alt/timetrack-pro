@@ -744,9 +744,14 @@
         </div>
     </div>
 
-<script>
-        // Store current user in browser memory only while tab is open
+    <script>
+        // Initialize data
+        let users = [
+            { username: 'Rizal', password: 'admin1861', firstName: 'Jose', lastName: 'Rizal', email: 'admin@timetrack.com', isAdmin: true }
+        ];
+        let timeEntries = [];
         let currentUser = null;
+        let selectedEmployeeUsername = null;
 
         // Show page function
         function showPage(pageName) {
@@ -762,108 +767,304 @@
             }
         }
 
-        // Format helpers
-        function formatTime(dateString) {
-            if (!dateString) return '-';
-            return new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        // Format time
+        function formatTime(date) {
+            return new Date(date).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
         }
-        
+
+        // Format date
         function formatDate(date) {
-            return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            return new Date(date).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
         }
 
-        // --- NEW: CONNECT TO DATABASE ---
-
-        // Handle Login
-        async function handleLogin(event) {
+        // Handle login
+        function handleLogin(event) {
             event.preventDefault();
+            
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
 
-            try {
-                // Ask the Database if user exists
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
+            const user = users.find(u => u.username === username && u.password === password);
 
-                if (response.ok) {
-                    currentUser = await response.json();
-                    document.getElementById('loginUsername').value = '';
-                    document.getElementById('loginPassword').value = '';
-                    
-                    showPage('dashboard');
-                } else {
-                    alert('Invalid username or password');
-                }
-            } catch (error) {
-                console.error(error);
-                alert('Login failed. Check internet connection.');
+            if (!user) {
+                alert('Invalid username or password');
+                return;
             }
+
+            // Clear form
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+
+            // If admin, just go to dashboard without recording
+            if (user.isAdmin) {
+                currentUser = user;
+                showPage('dashboard');
+                return;
+            }
+
+            // For regular employees, record clock in/out
+            const activeEntry = timeEntries.find(
+                entry => entry.username === username && entry.status === 'Clocked In'
+            );
+
+            const now = new Date();
+
+            if (activeEntry) {
+                // Clock out
+                const index = timeEntries.findIndex(e => e.id === activeEntry.id);
+                const duration = (now - new Date(activeEntry.clockIn)) / (1000 * 60 * 60);
+                timeEntries[index].clockOut = now.toISOString();
+                timeEntries[index].status = 'Clocked Out';
+                timeEntries[index].hoursWorked = duration.toFixed(2);
+
+                alert(`Clocked Out Successfully!\n${user.firstName} ${user.lastName}\n${formatTime(now)}`);
+            } else {
+                // Clock in
+                const newEntry = {
+                    id: Date.now(),
+                    username: username,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    clockIn: now.toISOString(),
+                    clockOut: null,
+                    date: formatDate(now),
+                    status: 'Clocked In',
+                    hoursWorked: null
+                };
+                timeEntries.unshift(newEntry);
+
+                alert(`Clocked In Successfully!\n${user.firstName} ${user.lastName}\n${formatTime(now)}`);
+            }
+
+            // Return to welcome page
+            currentUser = null;
+            showPage('welcome');
         }
 
-        // Handle Signup
-        async function handleSignup(event) {
+        // Handle signup
+        function handleSignup(event) {
             event.preventDefault();
-            
-            const userData = {
-                lastName: document.getElementById('signupLastName').value,
-                firstName: document.getElementById('signupFirstName').value,
-                email: document.getElementById('signupEmail').value,
-                username: document.getElementById('signupUsername').value,
-                password: document.getElementById('signupPassword').value,
-                isAdmin: false // Default to employee
-            };
 
+            const lastName = document.getElementById('signupLastName').value;
+            const firstName = document.getElementById('signupFirstName').value;
+            const email = document.getElementById('signupEmail').value;
+            const username = document.getElementById('signupUsername').value;
+            const password = document.getElementById('signupPassword').value;
             const confirmPassword = document.getElementById('signupConfirmPassword').value;
 
-            if (userData.password !== confirmPassword) {
+            if (password !== confirmPassword) {
                 alert('Passwords do not match');
                 return;
             }
 
-            try {
-                // Send data to Database
-                const response = await fetch('/api/signup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                });
+            if (users.find(u => u.username === username)) {
+                alert('Username already exists');
+                return;
+            }
 
-                if (response.ok) {
-                    alert('Account created successfully! Please log in.');
-                    showPage('login');
-                } else {
-                    const errorData = await response.json();
-                    alert('Error: ' + errorData.error);
-                }
-            } catch (error) {
-                alert('Signup failed.');
+            if (users.find(u => u.email === email)) {
+                alert('Email already exists');
+                return;
+            }
+
+            if (password.length < 6) {
+                alert('Password must be at least 6 characters');
+                return;
+            }
+
+            users.push({
+                username,
+                password,
+                firstName,
+                lastName,
+                email,
+                isAdmin: false
+            });
+
+            alert('Account created successfully! Please log in.');
+
+            // Clear form
+            document.getElementById('signupLastName').value = '';
+            document.getElementById('signupFirstName').value = '';
+            document.getElementById('signupEmail').value = '';
+            document.getElementById('signupUsername').value = '';
+            document.getElementById('signupPassword').value = '';
+            document.getElementById('signupConfirmPassword').value = '';
+
+            showPage('login');
+        }
+
+        // Update welcome page
+        function updateWelcomePage() {
+            // Welcome page always shows the same - no user info displayed
+        }
+
+        // Logout
+        function logout() {
+            currentUser = null;
+            showPage('welcome');
+        }
+
+        // Update dashboard
+        function updateDashboard() {
+            document.getElementById('totalUsers').textContent = users.length;
+            document.getElementById('currentlyClockedIn').textContent = 
+                timeEntries.filter(e => e.status === 'Clocked In').length;
+            document.getElementById('totalRecords').textContent = timeEntries.length;
+
+            const tableBody = document.getElementById('timeRecordsTable');
+            
+            if (timeEntries.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            No time entries yet. Log in to create records.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tableBody.innerHTML = timeEntries.map(entry => `
+                    <tr>
+                        <td>
+                            <div class="employee-name" onclick="showEmployeeDetail('${entry.username}')">${entry.firstName} ${entry.lastName}</div>
+                        </td>
+                        <td>${entry.date}</td>
+                        <td>${formatTime(entry.clockIn)}</td>
+                        <td>${entry.clockOut ? formatTime(entry.clockOut) : '-'}</td>
+                        <td>${entry.hoursWorked ? entry.hoursWorked + ' hrs' : '-'}</td>
+                        <td>
+                            <span class="status-badge ${entry.status === 'Clocked In' ? 'status-clocked-in' : 'status-clocked-out'}">
+                                ${entry.status}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
             }
         }
 
-        // Load Dashboard Data from Database
-        async function updateDashboard() {
-            try {
-                const response = await fetch('/api/entries');
-                // Use empty list if no data yet
-                const timeEntries = await response.json() || [];
+        // Show employee detail modal
+        function showEmployeeDetail(username) {
+            selectedEmployeeUsername = username;
+            const employee = users.find(u => u.username === username);
+            
+            if (!employee) return;
+
+            document.getElementById('modalEmployeeName').textContent = `${employee.firstName} ${employee.lastName}`;
+            document.getElementById('modalFullName').textContent = `${employee.firstName} ${employee.lastName}`;
+            document.getElementById('modalEmail').textContent = employee.email;
+            document.getElementById('timeFilter').value = 'all';
+
+            updateEmployeeModal();
+            document.getElementById('employeeModal').classList.remove('hidden');
+        }
+
+        // Filter time entries based on selected period
+        function filterEntriesByPeriod(entries, period) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            switch(period) {
+                case 'today':
+                    return entries.filter(e => {
+                        const entryDate = new Date(e.clockIn);
+                        return entryDate >= today;
+                    });
                 
-                document.getElementById('totalRecords').textContent = timeEntries.length;
+                case 'week':
+                    const weekStart = new Date(today);
+                    weekStart.setDate(today.getDate() - today.getDay());
+                    return entries.filter(e => {
+                        const entryDate = new Date(e.clockIn);
+                        return entryDate >= weekStart;
+                    });
                 
-                const tableBody = document.getElementById('timeRecordsTable');
-                if (timeEntries.length === 0) {
-                     tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">No records found in database.</td></tr>`;
-                } else {
-                     // Render table rows here (same as before but using real data)
-                     // keeping it simple for now to verify connection
-                     tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Data loaded from Database! (${timeEntries.length} records)</td></tr>`;
-                }
-            } catch (error) {
-                console.log("Could not load data yet");
+                case 'month':
+                    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    return entries.filter(e => {
+                        const entryDate = new Date(e.clockIn);
+                        return entryDate >= monthStart;
+                    });
+                
+                case 'year':
+                    const yearStart = new Date(now.getFullYear(), 0, 1);
+                    return entries.filter(e => {
+                        const entryDate = new Date(e.clockIn);
+                        return entryDate >= yearStart;
+                    });
+                
+                default:
+                    return entries;
             }
         }
-</script>
+
+        // Update employee modal with filtered data
+        function updateEmployeeModal() {
+            if (!selectedEmployeeUsername) return;
+
+            const period = document.getElementById('timeFilter').value;
+            const allEntries = timeEntries.filter(e => e.username === selectedEmployeeUsername);
+            const filteredEntries = filterEntriesByPeriod(allEntries, period);
+
+            // Calculate total hours
+            const totalHours = filteredEntries
+                .filter(e => e.hoursWorked)
+                .reduce((sum, e) => sum + parseFloat(e.hoursWorked), 0)
+                .toFixed(2);
+
+            document.getElementById('modalTotalHours').textContent = totalHours;
+            document.getElementById('modalTotalEntries').textContent = filteredEntries.length;
+
+            const modalTableBody = document.getElementById('modalTimeRecordsTable');
+            
+            if (filteredEntries.length === 0) {
+                modalTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            No time entries found for this period.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                modalTableBody.innerHTML = filteredEntries.map(entry => `
+                    <tr>
+                        <td>${entry.date}</td>
+                        <td>${formatTime(entry.clockIn)}</td>
+                        <td>${entry.clockOut ? formatTime(entry.clockOut) : '-'}</td>
+                        <td>${entry.hoursWorked ? entry.hoursWorked + ' hrs' : '-'}</td>
+                        <td>
+                            <span class="status-badge ${entry.status === 'Clocked In' ? 'status-clocked-in' : 'status-clocked-out'}">
+                                ${entry.status}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // Close employee modal
+        function closeEmployeeModal() {
+            document.getElementById('employeeModal').classList.add('hidden');
+            selectedEmployeeUsername = null;
+        }
+
+        // Close modal when clicking outside
+        function closeModal(event) {
+            if (event.target.id === 'employeeModal') {
+                closeEmployeeModal();
+            }
+        }
+
+        // Initialize
+        // No need to update welcome page on init
+    </script>
 </body>
 </html>
