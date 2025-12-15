@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
 
 const app = express();
 
@@ -14,9 +14,12 @@ app.use(express.static('public'));
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/timetrack';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
@@ -48,11 +51,17 @@ const TimeEntry = mongoose.model('TimeEntry', timeEntrySchema);
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Access denied' });
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied' });
+  }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token' });
+    }
     req.user = user;
     next();
   });
@@ -60,10 +69,20 @@ const authenticateToken = (req, res, next) => {
 
 // ============= API ROUTES =============
 
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running' });
+});
+
 // Sign Up
 app.post('/api/signup', async (req, res) => {
   try {
     const { firstName, lastName, email, username, password } = req.body;
+
+    // Validation
+    if (!firstName || !lastName || !email || !username || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
@@ -87,6 +106,7 @@ app.post('/api/signup', async (req, res) => {
     await user.save();
     res.status(201).json({ message: 'Account created successfully' });
   } catch (error) {
+    console.error('Signup error:', error);
     res.status(500).json({ error: 'Error creating account' });
   }
 });
@@ -95,6 +115,10 @@ app.post('/api/signup', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
 
     // Find user
     const user = await User.findOne({ username });
@@ -126,6 +150,7 @@ app.post('/api/login', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Error logging in' });
   }
 });
@@ -185,6 +210,7 @@ app.post('/api/clock', authenticateToken, async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Clock error:', error);
     res.status(500).json({ error: 'Error processing clock action' });
   }
 });
@@ -199,6 +225,7 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
     const entries = await TimeEntry.find().sort({ clockIn: -1 });
     res.json(entries);
   } catch (error) {
+    console.error('Error fetching entries:', error);
     res.status(500).json({ error: 'Error fetching entries' });
   }
 });
@@ -216,6 +243,7 @@ app.get('/api/entries/:username', authenticateToken, async (req, res) => {
     const entries = await TimeEntry.find({ username }).sort({ clockIn: -1 });
     res.json(entries);
   } catch (error) {
+    console.error('Error fetching user entries:', error);
     res.status(500).json({ error: 'Error fetching entries' });
   }
 });
@@ -230,6 +258,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     const users = await User.find().select('-password');
     res.json(users);
   } catch (error) {
+    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Error fetching users' });
   }
 });
@@ -251,13 +280,14 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
       totalRecords
     });
   } catch (error) {
+    console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Error fetching stats' });
   }
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+// Serve frontend
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start server
